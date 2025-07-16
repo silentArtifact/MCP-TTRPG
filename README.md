@@ -102,7 +102,7 @@ WebSocket endpoint. Send plaintext expressions; receive one-line JSON results—
 | Parentheses | Nest expressions | `(2d6+1)d4` |
 | Comments | `//` ignored to line end | `3d6 // str` |
 
-Full grammar lives in `docs/grammar.md`.
+Full grammar lives in [docs/grammar.md](docs/grammar.md).
 
 ## Configuration
 

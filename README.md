@@ -54,6 +54,13 @@ Expected response:
 }
 ```
 
+### Quick Start (Local)
+
+```bash
+python main.py
+```
+
+
 ## API Reference
 
 ### POST /roll

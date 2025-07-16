@@ -168,5 +168,5 @@ Pull requests for dice-notation edge cases, performance tweaks, and documentatio
 
 ## License
 
-Apache 2.0—see LICENSE.
+GPLv3—see LICENSE.
 

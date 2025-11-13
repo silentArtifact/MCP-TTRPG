@@ -2,10 +2,10 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { RequestSchema, TextResourceContentsSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { randomInt } from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
+import { rollDice, rollWithAdvantage, type Advantage } from './dice.js';
 
 const CAMPAIGN_DIR = path.join(process.cwd(), 'campaign');
 const SESSIONS_DIR = path.join(CAMPAIGN_DIR, 'sessions');
@@ -13,34 +13,6 @@ const LORE_DIR = path.join(CAMPAIGN_DIR, 'lore');
 
 await fs.mkdir(SESSIONS_DIR, { recursive: true });
 await fs.mkdir(LORE_DIR, { recursive: true });
-
-export type Advantage = 'adv' | 'dis' | null;
-
-export function rollDice(notation: string, advantage: Advantage = null) {
-  const match = notation.replace(/\s+/g, '').match(/^(\d*)d(\d+)([+-]\d+)?$/i);
-  if (!match) throw new Error('Invalid dice notation');
-  const count = parseInt(match[1] || '1', 10);
-  const sides = parseInt(match[2], 10);
-  const modifier = match[3] ? parseInt(match[3], 10) : 0;
-  let rolls: number[] = [];
-
-  if (advantage && count === 1 && sides === 20) {
-    const r1 = randomInt(1, 21);
-    const r2 = randomInt(1, 21);
-    rolls = [r1, r2];
-    const chosen = advantage === 'adv' ? Math.max(r1, r2) : Math.min(r1, r2);
-    const total = chosen + modifier;
-    const detail = `Rolled 1d20${modifier ? (modifier > 0 ? '+' + modifier : modifier) : ''} with ${advantage === 'adv' ? 'advantage' : 'disadvantage'}: [${r1}, ${r2}] -> ${chosen}${modifier ? (modifier > 0 ? '+' + modifier : modifier) : ''} = ${total}`;
-    return { total, rolls, detail };
-  }
-
-  for (let i = 0; i < count; i++) {
-    rolls.push(randomInt(1, sides + 1));
-  }
-  const total = rolls.reduce((a, b) => a + b, 0) + modifier;
-  const detail = `Rolled ${notation}: [${rolls.join(', ')}]${modifier ? (modifier > 0 ? ' + ' + modifier : ' - ' + Math.abs(modifier)) : ''} = ${total}`;
-  return { total, rolls, detail };
-}
 
 function uriToFilePath(url: URL) {
   if (url.protocol !== 'campaign:') throw new Error('Invalid scheme');
@@ -76,21 +48,23 @@ const server = new McpServer({ name: 'mcp-ttrpg', version: '0.1.0' });
 
 server.registerTool('roll_dice', {
   title: 'Roll Dice',
-  description: 'Roll dice using standard notation',
+  description: 'Roll dice using standard notation. Supports: NdM+K (basic), khN/klN (keep highest/lowest), dhN/dlN (drop highest/lowest), ! (exploding), r<N/r>N (reroll), nested expressions like (2d6+1)d4, and // comments. Use advantage: "adv" or "dis" for D&D 5e style advantage/disadvantage on d20 rolls.',
   inputSchema: {
-    notation: z.string(),
-    advantage: z.enum(['adv', 'dis']).nullish()
+    notation: z.string().describe('Dice notation (e.g., "2d20kh1+5", "4d6kh3", "d20!", "3d6r<2")'),
+    advantage: z.enum(['adv', 'dis']).nullish().describe('Advantage or disadvantage for d20 rolls')
   },
   outputSchema: {
     total: z.number(),
-    rolls: z.array(z.number()),
-    detail: z.string()
+    detail: z.string(),
+    breakdown: z.array(z.string())
   }
 }, async ({ notation, advantage }) => {
-  const result = rollDice(notation, advantage ?? null);
+  const result = advantage
+    ? rollWithAdvantage(notation, advantage)
+    : rollDice(notation);
   return {
     content: [
-      { type: 'text', text: JSON.stringify(result) }
+      { type: 'text', text: JSON.stringify(result, null, 2) }
     ]
   };
 });
